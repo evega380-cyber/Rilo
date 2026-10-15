@@ -39,8 +39,18 @@ Budget data is stored locally on the device/browser using AsyncStorage, under `r
 
 Saved data is schema-validated before loading. Failed loads block editing and preserve the original data; Retry attempts loading again. Failed saves show a visible retry action. Writes are serialized so a slower old write cannot overwrite newer edits. Do not clear app/browser storage if you need to retain your budget.
 
+## Backup and restore
+
+The **Backup** tab exports a timestamped `.json` file with paychecks, extra income, bills, schedules/cursors, statuses, assignments, and goals. Web requests a browser download. Native devices open the system save/share sheet; choose Save to Files or another location to retain it. Files are unencrypted and should be kept private. A download/share-sheet action is not proof that the user finished saving the file.
+
+Choose a backup file to validate and preview its export time and record counts. Only a supported Rilo backup up to 5 MiB is accepted. **Cancel** leaves current data unchanged. **Confirm replace and restore** replaces the budget, not merges it; active schedules catch up through the next 90 days. Existing paid/received status and schedule cursors are preserved.
+
+Before replacement, Rilo saves a local recovery copy under `rilo.restore.previous.v1`. **Undo last restore** replaces all changes since that restore with this copy and survives a normal app/browser restart. Successful undo removes the copy. If cleanup fails, the app reports that the budget was restored but the recovery copy remains. Only the latest recovery snapshot is retained. A recovery-copy write failure prevents replacement; a main write failure leaves the existing budget intact. Restore/undo operations are serialized behind pending autosaves and block editing while writing.
+
+Recovery copies are local; clearing device/browser storage removes them too. Keep exported files outside browser storage to recover after a reset or move to another device. File pickers, native sharing, and browser download behavior still require device-level review.
+
 ## Review and validation
 
 `npm test` runs money, income-status, paid-bill, assignment, date, deletion, saved-schema, and recurrence regression tests. `npm run typecheck` and `npm run lint` check the application. `npx expo export --platform web` verifies bundling. GitHub Actions runs these checks on this feature branch and pull requests. iOS/Android hardware testing is still needed before release.
 
-Recurring budget work is prepared on `feature/recurring-budget`; main is not modified or merged automatically. Text reminders, bank sync, and dedicated debt tracking are future work.
+Backup work is prepared on `feature/budget-backup`; main is not modified or merged automatically. Text reminders, bank sync, and dedicated debt tracking are future work.
