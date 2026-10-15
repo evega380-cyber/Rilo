@@ -14,9 +14,24 @@ Use Node 24, then `npm ci` and `npm start` (or `npm run web`). Choose a paycheck
 - Available now = received paycheck + received extra income − all assigned bills. Expected income appears only in the forecast. A negative amount means the plan is not funded yet.
 - Bills automatically use the latest paycheck on or before their due date unless explicitly assigned to another check. Bills before the first check remain unassigned and are flagged on Home. Adding or changing paycheck dates recalculates automatic assignments.
 - Paid bills remain reserved, so marking a bill paid cannot inflate available money. This is a paycheck allocation planner, not a bank balance or transaction ledger. No carryover is assumed between plans.
-- Bills are individual dated occurrences. Add the next month's occurrence separately; this version does not silently generate recurring bills or bank transactions.
+- Bills and paychecks remain individual editable occurrences. Use **Set repeats** on an existing entry to opt into a weekly, biweekly, or monthly schedule. Automatic generation never creates bank transactions.
 - A paycheck cannot be deleted until its assigned income and bills have been moved or deleted. All deletes require confirmation.
 - The side-gig goal is one reusable target applied to each selected paycheck. It never counts as income.
+
+## Repeating bills and paycheck scheduling
+
+1. Add a real bill or paycheck (or use one you already entered).
+2. Choose **Set repeats**, select weekly / every 2 weeks / monthly, review the next dates, and confirm.
+3. On Bills and Paychecks, each repeating bill or income source appears once with its next three occurrence dates and per-payment amounts/status. **Manage occurrences** expands its saved payments for editing, paid/unpaid status, and deletion. Unscheduled bills and paychecks stay separate. Received/expected status is managed per paycheck; linked bills and extra income still prevent accidental paycheck deletion. The preview can show dates beyond the 90-day planning window, labeled as not yet in your plan; it does not create or reserve money for those preview-only dates.
+4. Rilo generates occurrences through 90 days from today on load, on budget changes, and while the app stays open. It does not run a background service while closed; reopening catches up.
+
+Monthly schedules keep the original day as their anchor: January 31 becomes February 28/29, then March 31. New bills are always unpaid and use automatic paycheck assignment; new paychecks are always expected. The original entry keeps its ID, status, amount, and bill assignment.
+
+A persisted schedule cursor and stable occurrence IDs prevent duplicate generation on reload and prevent deleted entries from reappearing. Matching existing manual entries (same name, date, and amount) are skipped without overwriting them. Different named paycheck streams can share a date.
+
+**Repeating bills/paychecks** controls let you pause/resume and edit future name, amount, category, and end date. Edits apply only to occurrences not already generated. Existing entries, including paid/received history and occurrences beyond a newly shortened end date, remain available for individual editing/deletion. Resume catches up missed occurrences. To change cadence or anchor date, pause the old schedule and create a new schedule from a new entry; review overlapping entries first.
+
+Schedules start from entries no more than one year old (or future entries) to avoid accidentally generating years of history. Existing Core V2 data stays under the same storage key and loads without requiring a reset; nothing repeats until you opt in.
 
 ## Saved data
 
@@ -26,6 +41,6 @@ Saved data is schema-validated before loading. Failed loads block editing and pr
 
 ## Review and validation
 
-`npm test` runs money, income-status, paid-bill, assignment, date, deletion, and saved-schema regression tests. `npm run typecheck` and `npm run lint` check the application. `npx expo export --platform web` verifies bundling. GitHub Actions runs these checks on this feature branch and pull requests. iOS/Android hardware testing is still needed before release.
+`npm test` runs money, income-status, paid-bill, assignment, date, deletion, saved-schema, and recurrence regression tests. `npm run typecheck` and `npm run lint` check the application. `npx expo export --platform web` verifies bundling. GitHub Actions runs these checks on this feature branch and pull requests. iOS/Android hardware testing is still needed before release.
 
-Work is prepared on `feature/budget-core-v2`; main is not modified or merged automatically. Text reminders, bank sync, recurring bill generation, and dedicated debt tracking are future work.
+Recurring budget work is prepared on `feature/recurring-budget`; main is not modified or merged automatically. Text reminders, bank sync, and dedicated debt tracking are future work.
