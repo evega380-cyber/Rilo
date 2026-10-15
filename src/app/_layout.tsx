@@ -9,5 +9,6 @@ export default function Layout() {
     <Tabs.Screen name="paychecks" options={{ title: 'Paychecks', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 22 }}>▣</Text> }} />
     <Tabs.Screen name="income" options={{ title: 'Income', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 22 }}>＋</Text> }} />
     <Tabs.Screen name="bills" options={{ title: 'Bills', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 22 }}>▤</Text> }} />
+    <Tabs.Screen name="backup" options={{ title: 'Backup', tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 22 }}>↥</Text> }} />
   </Tabs></BudgetProvider>;
 }
