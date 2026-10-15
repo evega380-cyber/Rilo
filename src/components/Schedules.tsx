@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
-import { cents, decodeBudget, money, today } from '../core/budget';
+import { cents, decodeBudget, money, removePaycheck, today } from '../core/budget';
 import { dateInput, displayDate, parseDateInput } from '../core/dates';
-import type { Bill } from '../core/budget';
-import { nextBillOccurrences } from '../core/billPreview';
-import { cadenceLabel, occurrenceDate } from '../core/recurrence';
+import type { Bill, Paycheck } from '../core/budget';
+import { nextScheduleOccurrences } from '../core/billPreview';
+import { cadenceLabel } from '../core/recurrence';
 import type { Schedule } from '../core/recurrence';
 import { useBudget } from '../state/BudgetProvider';
 import { Button, Field } from './ui';
 import { styles as s } from './styles';
 
-export function Schedules({ kind, onEditBill }: { kind: Schedule['kind']; onEditBill?: (bill: Bill) => void }) {
+export function Schedules({ kind, onEditEntry }: { kind: Schedule['kind']; onEditEntry: (entry: Bill | Paycheck) => void }) {
   const { budget, update } = useBudget();
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [manageError, setManageError] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -36,44 +37,53 @@ export function Schedules({ kind, onEditBill }: { kind: Schedule['kind']; onEdit
     } catch (e) { setError((e as Error).message); }
   }
   if (!schedules.length) return null;
-  return <View style={{ marginTop: 20 }}><Text style={s.sectionTitle}>Repeating {kind === 'bill' ? 'bills' : 'paychecks'}</Text><Text style={s.goalText}>{kind === 'bill' ? 'One card per repeating bill. Review the next three dates or manage individual payments.' : 'Rilo plans 90 days ahead. New paychecks are expected; existing entries keep their own edits and status.'}</Text>
+  return <View style={{ marginTop: 20 }}><Text style={s.sectionTitle}>Repeating {kind === 'bill' ? 'bills' : 'income'}</Text><Text style={s.goalText}>{kind === 'bill' ? 'One card per repeating bill. Review the next three dates or manage individual payments.' : 'One card per repeating income source. Review the next three paydays or manage individual paychecks.'}</Text>
     {schedules.map(schedule => {
-      const next = occurrenceDate(schedule.anchorDate, schedule.cadence, schedule.nextIndex);
-      const ended = !!schedule.endDate && next > schedule.endDate;
-      const occurrences = budget.bills.filter(b => b.scheduleId === schedule.id).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-      const preview = kind === 'bill' ? nextBillOccurrences(budget, schedule, today()) : [];
-      const overdue = occurrences.filter(b => !b.paid && b.dueDate < today()).length;
+      const occurrences: (Bill | Paycheck)[] = kind === 'bill'
+        ? budget.bills.filter(b => b.scheduleId === schedule.id).sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+        : budget.paychecks.filter(p => p.scheduleId === schedule.id).sort((a, b) => a.date.localeCompare(b.date));
+      const preview = nextScheduleOccurrences(budget, schedule, today());
+      const overdue = occurrences.filter(b => 'paid' in b && !b.paid && b.dueDate < today()).length;
       return <View key={schedule.id} style={[s.section, { marginTop: 16 }]}>
         <Text style={s.itemTitle}>{schedule.name} · {money(schedule.amount)}</Text>
-        <Text style={s.itemSubtitle}>{cadenceLabel(schedule.cadence)} · {(kind === 'bill' ? !!schedule.endDate && schedule.endDate < today() : ended) ? 'Ended' : schedule.active ? 'Active' : 'Paused'}</Text>
-        {kind === 'bill' ? <>
+        <Text style={s.itemSubtitle}>{cadenceLabel(schedule.cadence)} · {(!!schedule.endDate && schedule.endDate < today()) ? 'Ended' : schedule.active ? 'Active' : 'Paused'}</Text>
+        <>
           <Text style={[s.cardLabel, { marginTop: 18, fontSize: 12 }]}>NEXT 3 OCCURRENCES</Text>
           {!preview.length && <Text style={s.goalText}>No upcoming occurrences.</Text>}
           {preview.map((entry, i) => <View key={entry.id ?? `preview-${i}`} style={[s.rowBetween, { marginTop: 12, gap: 12 }]}>
-            <View style={{ flex: 1 }}><Text style={s.itemTitle}>{displayDate(entry.date)}</Text><Text style={s.itemSubtitle}>{entry.id ? entry.paid ? 'Paid' : 'Unpaid' : 'Upcoming · not yet in your plan'}</Text></View>
+            <View style={{ flex: 1 }}><Text style={s.itemTitle}>{displayDate(entry.date)}</Text><Text style={s.itemSubtitle}>{entry.id ? kind === 'bill' ? entry.paid ? 'Paid' : 'Unpaid' : entry.status === 'received' ? 'Received' : 'Expected' : 'Upcoming · not yet in your plan'}</Text></View>
             <Text style={s.itemAmount}>{money(entry.amount)}</Text>
           </View>)}
           {!!overdue && <Text style={[s.red, { marginTop: 14 }]}>{overdue} overdue payment(s)</Text>}
-          <Button title={expanded === schedule.id ? 'Hide occurrences' : `Manage occurrences for ${schedule.name}`} secondary onPress={() => { setExpanded(expanded === schedule.id ? null : schedule.id); setDeleting(null); }} />
+          <Button title={expanded === schedule.id ? 'Hide occurrences' : `Manage occurrences for ${schedule.name}`} secondary onPress={() => { setExpanded(expanded === schedule.id ? null : schedule.id); setDeleting(null); setManageError(''); }} />
           {expanded === schedule.id && <View style={{ marginTop: 16 }}>
-            <Text style={s.sectionTitle}>All payments</Text>
-            {!occurrences.length && <Text style={s.goalText}>No saved payments. Future repeats follow this schedule.</Text>}
-            {occurrences.map(bill => <View key={bill.id} style={{ borderTopWidth: 1, borderTopColor: '#17446D', marginTop: 16, paddingTop: 16 }}>
-              <View style={s.rowBetween}><Text style={s.itemTitle}>{displayDate(bill.dueDate)}</Text><Text style={s.itemAmount}>{money(bill.amount)}</Text></View>
-              <Text style={s.itemSubtitle}>{bill.name} · {bill.paid ? 'Paid' : bill.dueDate < today() ? 'Overdue' : 'Unpaid'}</Text>
-              <Button title={bill.paid ? `Mark ${displayDate(bill.dueDate)} unpaid` : `Mark ${displayDate(bill.dueDate)} paid`} secondary onPress={() => update(b => ({ ...b, bills: b.bills.map(x => x.id === bill.id ? { ...x, paid: !x.paid } : x) }))} />
-              <Button title={`Edit payment ${displayDate(bill.dueDate)}`} secondary onPress={() => onEditBill?.(bill)} />
-              {deleting === bill.id ? <>
-                <Text style={[s.red, { marginTop: 12 }]}>Delete only this payment?</Text>
-                <Button title="Confirm delete payment" secondary onPress={() => { update(b => ({ ...b, bills: b.bills.filter(x => x.id !== bill.id) })); setDeleting(null); }} />
-                <Button title="Keep payment" secondary onPress={() => setDeleting(null)} />
-              </> : <Button title={`Delete payment ${displayDate(bill.dueDate)}`} secondary onPress={() => setDeleting(bill.id)} />}
-            </View>)}
+            <Text style={s.sectionTitle}>{kind === 'bill' ? 'All payments' : 'All paychecks'}</Text>
+            {!!manageError && <Text accessibilityRole="alert" style={s.red}>{manageError}</Text>}
+            {!occurrences.length && <Text style={s.goalText}>No saved occurrences. Future repeats follow this schedule.</Text>}
+            {occurrences.map(entry => {
+              const date = 'dueDate' in entry ? entry.dueDate : entry.date;
+              const received = 'paid' in entry ? entry.paid : entry.status === 'received';
+              return <View key={entry.id} style={{ borderTopWidth: 1, borderTopColor: '#17446D', marginTop: 16, paddingTop: 16 }}>
+                <View style={s.rowBetween}><Text style={s.itemTitle}>{displayDate(date)}</Text><Text style={s.itemAmount}>{money(entry.amount)}</Text></View>
+                <Text style={s.itemSubtitle}>{entry.name} · {'paid' in entry ? entry.paid ? 'Paid' : date < today() ? 'Overdue' : 'Unpaid' : entry.status === 'received' ? 'Received' : 'Expected'}</Text>
+                <Button title={`Mark ${displayDate(date)} ${kind === 'bill' ? received ? 'unpaid' : 'paid' : received ? 'expected' : 'received'}`} secondary onPress={() => update(b => kind === 'bill'
+                  ? { ...b, bills: b.bills.map(x => x.id === entry.id ? { ...x, paid: !x.paid } : x) }
+                  : { ...b, paychecks: b.paychecks.map(x => x.id === entry.id ? { ...x, status: x.status === 'received' ? 'expected' : 'received' } : x) })} />
+                <Button title={`Edit ${kind === 'bill' ? 'payment' : 'paycheck'} ${displayDate(date)}`} secondary onPress={() => onEditEntry(entry)} />
+                {deleting === entry.id ? <>
+                  <Text style={[s.red, { marginTop: 12 }]}>Delete only this occurrence?</Text>
+                  <Button title="Confirm delete occurrence" secondary onPress={() => {
+                    try {
+                      const next = kind === 'bill' ? { ...budget, bills: budget.bills.filter(x => x.id !== entry.id) } : removePaycheck(budget, entry.id);
+                      update(() => next); setDeleting(null); setManageError('');
+                    } catch (e) { setManageError((e as Error).message); }
+                  }} />
+                  <Button title="Keep occurrence" secondary onPress={() => { setDeleting(null); setManageError(''); }} />
+                </> : <Button title={`Delete ${kind === 'bill' ? 'payment' : 'paycheck'} ${displayDate(date)}`} secondary onPress={() => { setDeleting(entry.id); setManageError(''); }} />}
+              </View>;
+            })}
           </View>}
-        </> : <>
-          <Text style={s.itemSubtitle}>Next to generate: {ended ? 'None' : displayDate(next)}{schedule.endDate ? ` · Ends ${displayDate(schedule.endDate)}` : ''}</Text>
-          <Text style={s.itemSubtitle}>Upcoming entries already appear in your paychecks below.</Text>
-        </>}
+        </>
         {editing === schedule.id ? <>
           <Field label="Schedule name" value={name} onChange={setName} />
           <Field label="Future amount ($)" numeric value={amount} onChange={setAmount} />
@@ -84,7 +94,7 @@ export function Schedules({ kind, onEditBill }: { kind: Schedule['kind']; onEdit
           <Button title="Save future settings" onPress={() => save(schedule)} />
           <Button title="Cancel schedule edit" secondary onPress={() => setEditing(null)} />
         </> : <Button title={`Edit schedule for ${schedule.name}`} secondary onPress={() => edit(schedule)} />}
-        {(kind !== 'bill' || editing === schedule.id) && <><Button title={schedule.active ? `Pause repeats for ${schedule.name}` : `Resume repeats for ${schedule.name}`} secondary onPress={() => update(b => ({ ...b, schedules: (b.schedules ?? []).map(x => x.id === schedule.id ? { ...x, active: !x.active } : x) }))} />
+        {editing === schedule.id && <><Button title={schedule.active ? `Pause repeats for ${schedule.name}` : `Resume repeats for ${schedule.name}`} secondary onPress={() => update(b => ({ ...b, schedules: (b.schedules ?? []).map(x => x.id === schedule.id ? { ...x, active: !x.active } : x) }))} />
         <Text style={s.itemSubtitle}>Pausing leaves existing entries in place. Resuming also generates missed dates.</Text></>}
       </View>;
     })}

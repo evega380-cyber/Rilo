@@ -25,7 +25,7 @@ export function Manager({ kind }: { kind: Kind }) {
   const [assignment, setAssignment] = useState('');
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
-  const items: (Paycheck | Income | Bill)[] = kind === 'paychecks' ? checks : kind === 'income' ? budget.income : budget.bills.filter(b => !b.scheduleId).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const items: (Paycheck | Income | Bill)[] = kind === 'paychecks' ? checks.filter(p => !p.scheduleId) : kind === 'income' ? budget.income : budget.bills.filter(b => !b.scheduleId).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   function edit(item?: Paycheck | Income | Bill) {
     setEditing(item?.id ?? null); setName(item?.name ?? (kind === 'paychecks' ? 'Regular paycheck' : ''));
     setAmount(item ? String(item.amount / 100) : '');
@@ -72,8 +72,8 @@ export function Manager({ kind }: { kind: Kind }) {
       {kind !== 'bills' ? <Choices label="Status" value={status} options={[{ value: 'expected', label: 'Expected' }, { value: 'received', label: 'Received' }]} onChange={v => setStatus(v as Status)} /> : <Field label="Category" value={category} onChange={setCategory} />}
       {kind !== 'paychecks' && <Choices label="Paycheck plan" value={assignment} options={[...(kind === 'bills' ? [{ value: '', label: 'Automatic by due date' }] : []), ...checks.map(p => ({ value: p.id, label: `${p.name} · ${displayDate(p.date)}` }))]} onChange={setAssignment} />}
       <Button title="Save entry" onPress={save} /><Button title="Cancel" secondary onPress={() => { setOpen(false); setError(''); }} /></View>}
-    {kind !== 'income' && <Schedules kind={kind === 'bills' ? 'bill' : 'paycheck'} onEditBill={edit} />}
-    {!items.length && !(kind === 'bills' && (budget.schedules ?? []).some(s => s.kind === 'bill')) && <Text style={[s.goalText, { marginVertical: 24 }]}>No {kind} yet. Add your first entry to start your plan.</Text>}
+    {kind !== 'income' && <Schedules kind={kind === 'bills' ? 'bill' : 'paycheck'} onEditEntry={edit} />}
+    {!items.length && !(kind !== 'income' && (budget.schedules ?? []).some(s => s.kind === (kind === 'bills' ? 'bill' : 'paycheck'))) && <Text style={[s.goalText, { marginVertical: 24 }]}>No {kind} yet. Add your first entry to start your plan.</Text>}
     {items.map(item => <View key={item.id} style={[s.section, { marginTop: 16 }]}><View style={s.rowBetween}><Text style={[s.itemTitle, { flex: 1 }]}>{item.name}</Text><Text style={s.itemAmount}>{money(item.amount)}</Text></View><Text style={s.itemSubtitle}>{'dueDate' in item ? `${displayDate(item.dueDate)} · ${item.category || 'Bill'} · ${item.paid ? 'Paid' : item.dueDate < today() ? 'Overdue' : 'Unpaid'}` : `${displayDate(item.date)} · ${item.status}`}</Text>
       {'paycheckId' in item && <Text style={s.itemSubtitle}>Plan: {displayDate(checks.find(p => p.id === ('dueDate' in item ? assignedCheck(budget, item) : item.paycheckId))?.date) || 'Unassigned — add an earlier paycheck or select one'}</Text>}
       <Button title={`Edit ${item.name}`} secondary onPress={() => edit(item)} />
