@@ -49,8 +49,22 @@ Before replacement, Rilo saves a local recovery copy under `rilo.restore.previou
 
 Recovery copies are local; clearing device/browser storage removes them too. Keep exported files outside browser storage to recover after a reset or move to another device. File pickers, native sharing, and browser download behavior still require device-level review.
 
+## Bill reminders
+
+Open **View bill reminders** from Home or Bills. The in-app list is available on every platform and shows unpaid bills across all paychecks: overdue, due today, and the next 7 or 30 days. Marking a bill paid updates the budget and removes it from this list.
+
+On native iOS/Android, opt into device notifications, choose due-day-only or 1/3/7 days before plus due day, and set a local 24-hour time. Permission is requested only after pressing Enable/Save; notifications default off. A 10-second test reminder is available after enabling. OS permission denial is reported and can be rechecked with Refresh after changing device settings. Native apps need a development/release build including the new notifications plugin; SDK 57 Expo Go supports local notifications, but physical-device checks are required before release.
+
+Safari/web gets the in-app list only. It does not receive background push/device alerts, and no SMS is sent. This change does not add a server or messaging subscription.
+
+Only actual unpaid bill occurrences produce device events. Reminders are calculated in local device time across DST, with past events skipped rather than delivered in a burst. Device settings/OS scheduling can delay or suppress delivery. Reopen Rilo after timezone changes. Scheduled local notifications can fire while the app is closed, but the planning horizon only refreshes while opening/using the app.
+
+A scoped reconciliation queue updates only Rilo bill-reminder events when bills are edited, paid, deleted, restored, or regenerated. Unchanged requests are retained; duplicates and obsolete requests are cancelled. At most the earliest 60 pending alerts are targeted, less any unrelated requests already occupying the app's queue; remaining events are reported and refreshed as space opens. No bank/payment transaction is triggered.
+
+Per-device preferences are stored under `rilo.reminders.v1` and are deliberately separate from exported budget backups and OS permissions. Restoring a budget retains current device preferences and reconciles notifications to the restored bills. Failed sync/cancellation is visible; older alerts may remain until successfully refreshed. Notification taps open the reminders screen.
+
 ## Review and validation
 
 `npm test` runs money, income-status, paid-bill, assignment, date, deletion, saved-schema, and recurrence regression tests. `npm run typecheck` and `npm run lint` check the application. `npx expo export --platform web` verifies bundling. GitHub Actions runs these checks on this feature branch and pull requests. iOS/Android hardware testing is still needed before release.
 
-Backup work is prepared on `feature/budget-backup`; main is not modified or merged automatically. Text reminders, bank sync, and dedicated debt tracking are future work.
+Reminder work is prepared on `feature/bill-reminders`; main is not modified or merged automatically. SMS reminders, bank sync, and dedicated debt tracking are future work.

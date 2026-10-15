@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { useBudget } from '../state/BudgetProvider';
 import { addDays, assignedCheck, Bill, cents, Income, money, orderedChecks, Paycheck, removePaycheck, Status, today } from '../core/budget';
 import { Button, Choices, Field, Screen } from './ui';
@@ -66,6 +67,7 @@ export function Manager({ kind }: { kind: Kind }) {
     } catch (e) { setError((e as Error).message); }
   }
   return <Screen scrollRef={scrollRef}><Text style={s.greetingText}>{kind === 'income' ? 'Income management' : kind === 'bills' ? 'Your bills' : 'Your paychecks'}</Text><Text style={s.subText}>{kind === 'bills' ? 'Add bills once, then set them to repeat. Automatic assignment follows your paycheck dates.' : kind === 'income' ? 'Track expected earnings, then mark them received. Each entry belongs to one paycheck plan.' : 'Add a paycheck and set a repeating schedule. Mark each paycheck received when it arrives.'}</Text>
+    {kind === 'bills' && <Button title="View bill reminders" secondary onPress={() => router.push('/reminders')} />}
     <Button title={`+ Add ${kind === 'paychecks' ? 'paycheck' : kind === 'income' ? 'income' : 'bill'}`} onPress={() => edit()} />
     {!!error && <Text accessibilityRole="alert" style={[s.red, { marginVertical: 12 }]}>{error}</Text>}
     {open && <View style={[s.section, { marginTop: 16 }]}><Text style={s.sectionTitle}>{editing ? 'Edit entry' : 'New entry'}</Text><Field label="Name" value={name} onChange={setName} /><Field label="Amount ($)" numeric value={amount} onChange={setAmount} /><Field label={kind === 'bills' ? 'Due date (MM/DD/YYYY)' : 'Date (MM/DD/YYYY)'} value={dateText} onChange={setDate} />
