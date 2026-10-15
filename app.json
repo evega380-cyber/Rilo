@@ -24,7 +24,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-notifications"
     ],
     "scheme": "rilo"
   }

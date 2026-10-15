@@ -2,12 +2,17 @@ import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { displayDate } from '../core/dates';
+import { useReminders } from '../state/RemindersProvider';
+import { billReminderGroups } from '../core/reminders';
 import { useBudget } from '../state/BudgetProvider';
 import { assignedCheck, cents, money, orderedChecks, plan, today } from '../core/budget';
 import { Button, Choices, Field, Screen } from '../components/ui';
 import { styles as s } from '../components/styles';
 export default function Home() {
   const { budget, update } = useBudget();
+  const { now } = useReminders();
+  const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const due = billReminderGroups(budget, localDate);
   const checks = orderedChecks(budget);
   const [selected, setSelected] = useState('');
   const [goalOpen, setGoalOpen] = useState(false);
@@ -30,6 +35,7 @@ export default function Home() {
       <View style={s.section}><Text style={s.sectionTitle}>Coming from this check</Text><Text style={s.itemSubtitle}>Paid {money(p.paid)} · Still due {money(p.unpaid)}</Text>{!p.bills.length && <Text style={s.goalText}>No bills assigned yet.</Text>}{p.bills.map(b => <View key={b.id} style={s.billRow}><View style={s.billIcon}><Text style={s.billIconText}>$</Text></View><View style={s.billInfo}><Text style={s.itemTitle}>{b.name}</Text><Text style={s.itemSubtitle}>{displayDate(b.dueDate)} · {b.paid ? 'Paid' : b.dueDate < today() ? 'Overdue' : 'Unpaid'}{b.dueDate < check.date ? ' · Due before paycheck' : ''}</Text></View><Text style={s.itemAmount}>{money(b.amount)}</Text></View>)}<Button title="Edit bills and assignments" secondary onPress={() => router.push('/bills')} /></View>
     </>}
     {!!unassigned.length && <View style={s.section}><Text style={s.red}>{unassigned.length} bill(s) need a paycheck assignment.</Text><Button title="Review unassigned bills" secondary onPress={() => router.push('/bills')} /></View>}
+    <View style={s.section}><Text style={s.sectionTitle}>Bill reminders</Text><Text style={s.goalText}>{due.overdue.length} overdue · {due.today.length} due today · {due.upcoming.length} due in the next 7 days</Text><Button title="View bill reminders" secondary onPress={() => router.push('/reminders')} /></View>
     <View style={s.goalCard}><Text style={s.goalLabel}>SIDE-GIG GOAL · SELECTED PAYCHECK</Text><Text style={s.goalTitle}>{money(p.extraReceived)} of {money(budget.goal)} received</Text><Text style={s.goalText}>Uber, overtime, tips, freelance. Expected earnings stay separate until you mark them received.</Text><Button title="Set an income goal" secondary onPress={() => { setGoal(String(budget.goal / 100)); setGoalOpen(true); }} />{goalOpen && <><Field label="Extra income goal ($; 0 to clear)" value={goal} numeric onChange={setGoal} />{!!error && <Text style={s.red}>{error}</Text>}<Button title="Save goal" onPress={saveGoal} /><Button title="Cancel" secondary onPress={() => setGoalOpen(false)} /></>}</View>
     <Button title="Plan my paycheck" onPress={() => router.push('/paychecks')} /><Text style={s.quote}>A plan today. A better tomorrow.</Text>
   </Screen>;
