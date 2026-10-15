@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
-import { cents, decodeBudget, money, today, validDate } from '../core/budget';
+import { cents, decodeBudget, money, today } from '../core/budget';
+import { dateInput, displayDate, parseDateInput } from '../core/dates';
 import type { Bill } from '../core/budget';
 import { nextBillOccurrences } from '../core/billPreview';
 import { cadenceLabel, occurrenceDate } from '../core/recurrence';
@@ -22,14 +23,15 @@ export function Schedules({ kind, onEditBill }: { kind: Schedule['kind']; onEdit
   const schedules = (budget.schedules ?? []).filter(x => x.kind === kind);
   function edit(schedule: Schedule) {
     setEditing(schedule.id); setName(schedule.name); setAmount(String(schedule.amount / 100));
-    setCategory(schedule.category); setEndDate(schedule.endDate ?? ''); setError('');
+    setCategory(schedule.category); setEndDate(dateInput(schedule.endDate ?? '')); setError('');
   }
   function save(schedule: Schedule) {
     try {
       if (!name.trim()) throw new Error('Enter a schedule name.');
       const value = cents(amount);
-      if (endDate && (!validDate(endDate) || endDate < schedule.anchorDate)) throw new Error('End date must be a real date on or after the first occurrence.');
-      const next = decodeBudget(JSON.stringify({ ...budget, schedules: (budget.schedules ?? []).map(x => x.id === schedule.id ? { ...x, name: name.trim(), amount: value, category: category.trim(), endDate: endDate || null } : x) }));
+      const isoEnd = endDate.trim() ? parseDateInput(endDate) : null;
+      if (endDate.trim() && (!isoEnd || isoEnd < schedule.anchorDate)) throw new Error('Use MM/DD/YYYY for an end date on or after the first occurrence.');
+      const next = decodeBudget(JSON.stringify({ ...budget, schedules: (budget.schedules ?? []).map(x => x.id === schedule.id ? { ...x, name: name.trim(), amount: value, category: category.trim(), endDate: isoEnd } : x) }));
       update(() => next); setEditing(null); setError('');
     } catch (e) { setError((e as Error).message); }
   }
@@ -48,7 +50,7 @@ export function Schedules({ kind, onEditBill }: { kind: Schedule['kind']; onEdit
           <Text style={[s.cardLabel, { marginTop: 18, fontSize: 12 }]}>NEXT 3 OCCURRENCES</Text>
           {!preview.length && <Text style={s.goalText}>No upcoming occurrences.</Text>}
           {preview.map((entry, i) => <View key={entry.id ?? `preview-${i}`} style={[s.rowBetween, { marginTop: 12, gap: 12 }]}>
-            <View style={{ flex: 1 }}><Text style={s.itemTitle}>{entry.date}</Text><Text style={s.itemSubtitle}>{entry.id ? entry.paid ? 'Paid' : 'Unpaid' : 'Upcoming · not yet in your plan'}</Text></View>
+            <View style={{ flex: 1 }}><Text style={s.itemTitle}>{displayDate(entry.date)}</Text><Text style={s.itemSubtitle}>{entry.id ? entry.paid ? 'Paid' : 'Unpaid' : 'Upcoming · not yet in your plan'}</Text></View>
             <Text style={s.itemAmount}>{money(entry.amount)}</Text>
           </View>)}
           {!!overdue && <Text style={[s.red, { marginTop: 14 }]}>{overdue} overdue payment(s)</Text>}
@@ -57,26 +59,26 @@ export function Schedules({ kind, onEditBill }: { kind: Schedule['kind']; onEdit
             <Text style={s.sectionTitle}>All payments</Text>
             {!occurrences.length && <Text style={s.goalText}>No saved payments. Future repeats follow this schedule.</Text>}
             {occurrences.map(bill => <View key={bill.id} style={{ borderTopWidth: 1, borderTopColor: '#17446D', marginTop: 16, paddingTop: 16 }}>
-              <View style={s.rowBetween}><Text style={s.itemTitle}>{bill.dueDate}</Text><Text style={s.itemAmount}>{money(bill.amount)}</Text></View>
+              <View style={s.rowBetween}><Text style={s.itemTitle}>{displayDate(bill.dueDate)}</Text><Text style={s.itemAmount}>{money(bill.amount)}</Text></View>
               <Text style={s.itemSubtitle}>{bill.name} · {bill.paid ? 'Paid' : bill.dueDate < today() ? 'Overdue' : 'Unpaid'}</Text>
-              <Button title={bill.paid ? `Mark ${bill.dueDate} unpaid` : `Mark ${bill.dueDate} paid`} secondary onPress={() => update(b => ({ ...b, bills: b.bills.map(x => x.id === bill.id ? { ...x, paid: !x.paid } : x) }))} />
-              <Button title={`Edit payment ${bill.dueDate}`} secondary onPress={() => onEditBill?.(bill)} />
+              <Button title={bill.paid ? `Mark ${displayDate(bill.dueDate)} unpaid` : `Mark ${displayDate(bill.dueDate)} paid`} secondary onPress={() => update(b => ({ ...b, bills: b.bills.map(x => x.id === bill.id ? { ...x, paid: !x.paid } : x) }))} />
+              <Button title={`Edit payment ${displayDate(bill.dueDate)}`} secondary onPress={() => onEditBill?.(bill)} />
               {deleting === bill.id ? <>
                 <Text style={[s.red, { marginTop: 12 }]}>Delete only this payment?</Text>
                 <Button title="Confirm delete payment" secondary onPress={() => { update(b => ({ ...b, bills: b.bills.filter(x => x.id !== bill.id) })); setDeleting(null); }} />
                 <Button title="Keep payment" secondary onPress={() => setDeleting(null)} />
-              </> : <Button title={`Delete payment ${bill.dueDate}`} secondary onPress={() => setDeleting(bill.id)} />}
+              </> : <Button title={`Delete payment ${displayDate(bill.dueDate)}`} secondary onPress={() => setDeleting(bill.id)} />}
             </View>)}
           </View>}
         </> : <>
-          <Text style={s.itemSubtitle}>Next to generate: {ended ? 'None' : next}{schedule.endDate ? ` · Ends ${schedule.endDate}` : ''}</Text>
+          <Text style={s.itemSubtitle}>Next to generate: {ended ? 'None' : displayDate(next)}{schedule.endDate ? ` · Ends ${displayDate(schedule.endDate)}` : ''}</Text>
           <Text style={s.itemSubtitle}>Upcoming entries already appear in your paychecks below.</Text>
         </>}
         {editing === schedule.id ? <>
           <Field label="Schedule name" value={name} onChange={setName} />
           <Field label="Future amount ($)" numeric value={amount} onChange={setAmount} />
           {kind === 'bill' && <Field label="Future category" value={category} onChange={setCategory} />}
-          <Field label="End date (YYYY-MM-DD; blank for no end)" value={endDate} onChange={setEndDate} />
+          <Field label="End date (MM/DD/YYYY; blank for no end)" value={endDate} onChange={setEndDate} />
           <Text style={s.goalText}>Settings apply only to occurrences not generated yet. Edit already listed entries individually, including any beyond a new end date.</Text>
           {!!error && <Text accessibilityRole="alert" style={s.red}>{error}</Text>}
           <Button title="Save future settings" onPress={() => save(schedule)} />
