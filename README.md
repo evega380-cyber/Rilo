@@ -22,7 +22,8 @@ Use Node 24, then `npm ci` and `npm start` (or `npm run web`). Choose a paycheck
 
 1. Add a real bill or paycheck (or use one you already entered).
 2. Choose **Set repeats**, select weekly / every 2 weeks / monthly, review the next dates, and confirm.
-3. Rilo generates occurrences through 90 days from today on load, on budget changes, and while the app stays open. It does not run a background service while closed; reopening catches up.
+3. On Bills, each repeating bill appears once with its next three occurrence dates and per-payment amounts/status. **Manage occurrences** expands its saved payments for editing, paid/unpaid status, and deletion. Unscheduled bills stay separate. The preview can show dates beyond the 90-day planning window, labeled as not yet in your plan; it does not create or reserve money for those preview-only dates.
+4. Rilo generates occurrences through 90 days from today on load, on budget changes, and while the app stays open. It does not run a background service while closed; reopening catches up.
 
 Monthly schedules keep the original day as their anchor: January 31 becomes February 28/29, then March 31. New bills are always unpaid and use automatic paycheck assignment; new paychecks are always expected. The original entry keeps its ID, status, amount, and bill assignment.
 

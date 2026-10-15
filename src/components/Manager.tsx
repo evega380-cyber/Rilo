@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 import { useBudget } from '../state/BudgetProvider';
 import { addDays, assignedCheck, Bill, cents, Income, money, orderedChecks, Paycheck, removePaycheck, Status, today, validDate } from '../core/budget';
 import { Button, Choices, Field, Screen } from './ui';
@@ -11,6 +11,7 @@ const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 export function Manager({ kind }: { kind: Kind }) {
   const { budget, update } = useBudget();
   const checks = orderedChecks(budget);
+  const scrollRef = useRef<ScrollView>(null);
   const [repeating, setRepeating] = useState<string | null>(null);
   const [cadence, setCadence] = useState<Cadence>(kind === 'bills' ? 'monthly' : 'biweekly');
   const [editing, setEditing] = useState<string | null>(null);
@@ -23,7 +24,7 @@ export function Manager({ kind }: { kind: Kind }) {
   const [assignment, setAssignment] = useState('');
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
-  const items: (Paycheck | Income | Bill)[] = kind === 'paychecks' ? checks : kind === 'income' ? budget.income : [...budget.bills].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const items: (Paycheck | Income | Bill)[] = kind === 'paychecks' ? checks : kind === 'income' ? budget.income : budget.bills.filter(b => !b.scheduleId).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   function edit(item?: Paycheck | Income | Bill) {
     setEditing(item?.id ?? null); setName(item?.name ?? (kind === 'paychecks' ? 'Regular paycheck' : ''));
     setAmount(item ? String(item.amount / 100) : '');
@@ -32,6 +33,7 @@ export function Manager({ kind }: { kind: Kind }) {
     setCategory(item && 'category' in item ? item.category : '');
     setAssignment(item && 'paycheckId' in item ? item.paycheckId ?? '' : kind === 'income' ? checks[0]?.id ?? '' : '');
     setError(''); setOpen(true); setDeleting(null); setRepeating(null);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
   }
   function save() {
     try {
@@ -61,15 +63,15 @@ export function Manager({ kind }: { kind: Kind }) {
       setDeleting(null); setError('');
     } catch (e) { setError((e as Error).message); }
   }
-  return <Screen><Text style={s.greetingText}>{kind === 'income' ? 'Income management' : kind === 'bills' ? 'Your bills' : 'Your paychecks'}</Text><Text style={s.subText}>{kind === 'bills' ? 'Add bills once, then set them to repeat. Automatic assignment follows your paycheck dates.' : kind === 'income' ? 'Track expected earnings, then mark them received. Each entry belongs to one paycheck plan.' : 'Add a paycheck and set a repeating schedule. Mark each paycheck received when it arrives.'}</Text>
+  return <Screen scrollRef={scrollRef}><Text style={s.greetingText}>{kind === 'income' ? 'Income management' : kind === 'bills' ? 'Your bills' : 'Your paychecks'}</Text><Text style={s.subText}>{kind === 'bills' ? 'Add bills once, then set them to repeat. Automatic assignment follows your paycheck dates.' : kind === 'income' ? 'Track expected earnings, then mark them received. Each entry belongs to one paycheck plan.' : 'Add a paycheck and set a repeating schedule. Mark each paycheck received when it arrives.'}</Text>
     <Button title={`+ Add ${kind === 'paychecks' ? 'paycheck' : kind === 'income' ? 'income' : 'bill'}`} onPress={() => edit()} />
     {!!error && <Text accessibilityRole="alert" style={[s.red, { marginVertical: 12 }]}>{error}</Text>}
     {open && <View style={[s.section, { marginTop: 16 }]}><Text style={s.sectionTitle}>{editing ? 'Edit entry' : 'New entry'}</Text><Field label="Name" value={name} onChange={setName} /><Field label="Amount ($)" numeric value={amount} onChange={setAmount} /><Field label={kind === 'bills' ? 'Due date (YYYY-MM-DD)' : 'Date (YYYY-MM-DD)'} value={date} onChange={setDate} />
       {kind !== 'bills' ? <Choices label="Status" value={status} options={[{ value: 'expected', label: 'Expected' }, { value: 'received', label: 'Received' }]} onChange={v => setStatus(v as Status)} /> : <Field label="Category" value={category} onChange={setCategory} />}
       {kind !== 'paychecks' && <Choices label="Paycheck plan" value={assignment} options={[...(kind === 'bills' ? [{ value: '', label: 'Automatic by due date' }] : []), ...checks.map(p => ({ value: p.id, label: `${p.name} · ${p.date}` }))]} onChange={setAssignment} />}
       <Button title="Save entry" onPress={save} /><Button title="Cancel" secondary onPress={() => { setOpen(false); setError(''); }} /></View>}
-    {kind !== 'income' && <Schedules kind={kind === 'bills' ? 'bill' : 'paycheck'} />}
-    {!items.length && <Text style={[s.goalText, { marginVertical: 24 }]}>No {kind} yet. Add your first entry to start your plan.</Text>}
+    {kind !== 'income' && <Schedules kind={kind === 'bills' ? 'bill' : 'paycheck'} onEditBill={edit} />}
+    {!items.length && !(kind === 'bills' && (budget.schedules ?? []).some(s => s.kind === 'bill')) && <Text style={[s.goalText, { marginVertical: 24 }]}>No {kind} yet. Add your first entry to start your plan.</Text>}
     {items.map(item => <View key={item.id} style={[s.section, { marginTop: 16 }]}><View style={s.rowBetween}><Text style={[s.itemTitle, { flex: 1 }]}>{item.name}</Text><Text style={s.itemAmount}>{money(item.amount)}</Text></View><Text style={s.itemSubtitle}>{'dueDate' in item ? `${item.dueDate} · ${item.category || 'Bill'} · ${item.paid ? 'Paid' : item.dueDate < today() ? 'Overdue' : 'Unpaid'}` : `${item.date} · ${item.status}`}</Text>
       {'paycheckId' in item && <Text style={s.itemSubtitle}>Plan: {checks.find(p => p.id === ('dueDate' in item ? assignedCheck(budget, item) : item.paycheckId))?.date ?? 'Unassigned — add an earlier paycheck or select one'}</Text>}
       <Button title={`Edit ${item.name}`} secondary onPress={() => edit(item)} />
