@@ -1,8 +1,9 @@
+import type { Schedule } from './recurrence';
 export type Status = 'expected' | 'received';
-export type Paycheck = { id: string; name: string; date: string; amount: number; status: Status };
+export type Paycheck = { id: string; name: string; date: string; amount: number; status: Status; scheduleId?: string };
 export type Income = { id: string; name: string; date: string; amount: number; status: Status; paycheckId: string };
-export type Bill = { id: string; name: string; category: string; dueDate: string; amount: number; paid: boolean; paycheckId: string | null };
-export type Budget = { version: 2; paychecks: Paycheck[]; income: Income[]; bills: Bill[]; goal: number };
+export type Bill = { id: string; name: string; category: string; dueDate: string; amount: number; paid: boolean; paycheckId: string | null; scheduleId?: string };
+export type Budget = { version: 2; paychecks: Paycheck[]; income: Income[]; bills: Bill[]; goal: number; schedules?: Schedule[] };
 export const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 export function cents(value: string): number {
   if (!/^\d+(\.\d{1,2})?$/.test(value.trim())) throw new Error('Enter a positive amount with up to two decimal places.');
@@ -39,7 +40,7 @@ export function plan(budget: Budget, paycheckId: string) {
     available: received - reserved, forecast: projected - reserved,
     percent: projected ? Math.min(100, Math.round(reserved / projected * 100)) : 0 };
 }
-export function emptyBudget(): Budget { return { version: 2, paychecks: [], income: [], bills: [], goal: 0 }; }
+export function emptyBudget(): Budget { return { version: 2, paychecks: [], income: [], bills: [], goal: 0, schedules: [] }; }
 export function removePaycheck(budget: Budget, id: string): Budget {
   if (budget.income.some(i => i.paycheckId === id) || budget.bills.some(b => assignedCheck(budget, b) === id)) throw new Error('Move or delete this paycheck’s income and bills first.');
   return { ...budget, paychecks: budget.paychecks.filter(p => p.id !== id) };
@@ -60,5 +61,18 @@ export function decodeBudget(raw: string): Budget {
   if (b.paychecks.some(p => !validDate(p.date) || !status(p.status)) ||
     b.income.some(i => !validDate(i.date) || !status(i.status) || !checks.has(i.paycheckId)) ||
     b.bills.some(x => !validDate(x.dueDate) || typeof x.category !== 'string' || typeof x.paid !== 'boolean' || (x.paycheckId !== null && !checks.has(x.paycheckId)))) throw new Error('Invalid saved relationships or dates.');
+  if (b.schedules !== undefined && !Array.isArray(b.schedules)) throw new Error('Invalid saved schedules.');
+  const scheduleIds = new Set<string>();
+  for (const s of b.schedules ?? []) {
+    if (!s || !name(s.id) || ids.has(s.id) || scheduleIds.has(s.id) || !name(s.name) || !amount(s.amount) ||
+      !['bill', 'paycheck'].includes(s.kind) || !['weekly', 'biweekly', 'monthly'].includes(s.cadence) ||
+      !validDate(s.anchorDate) || !Number.isSafeInteger(s.nextIndex) || s.nextIndex < 1 || s.nextIndex > 20000 ||
+      typeof s.active !== 'boolean' || typeof s.category !== 'string' ||
+      (s.endDate !== null && (!validDate(s.endDate) || s.endDate < s.anchorDate))) throw new Error('Invalid saved schedule.');
+    scheduleIds.add(s.id);
+  }
+  for (const item of [...b.paychecks, ...b.bills]) {
+    if (item.scheduleId !== undefined && !(b.schedules ?? []).some(s => s.id === item.scheduleId && s.kind === ('dueDate' in item ? 'bill' : 'paycheck'))) throw new Error('Invalid saved schedule reference.');
+  }
   return b;
 }
